@@ -3,7 +3,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
-const csrf = require('csurf');
+const crypto = require('crypto');
 const cors = require('cors');
 
 const authRoutes = require('./auth');
@@ -15,20 +15,22 @@ const { ok, fail } = require('./helpers');
 
 const app = express();
 
+const SESSION_SECRET = process.env.SESSION_SECRET || 'authguard_dev_secret_key_1234567890';
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+
 // 1. Security Headers via Helmet
 app.use(helmet());
 
 // 2. CORS setup
-const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 app.use(cors({
-  origin: clientOrigin,
+  origin: CLIENT_ORIGIN,
   credentials: true
 }));
 
 // 3. Body & Cookie Parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser(SESSION_SECRET));
 
 // 4. Rate Limiting
 const generalLimiter = rateLimit({
@@ -50,7 +52,7 @@ app.use('/api/auth/register', authLimiter);
 // 5. Session Setup
 app.use(session({
   name: 'authguard.sid',
-  secret: process.env.SESSION_SECRET || 'authguard_dev_secret_key_1234567890',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -61,14 +63,33 @@ app.use(session({
   }
 }));
 
-// 6. CSRF Protection
-const csrfProtection = csrf({ cookie: true });
-app.use(csrfProtection);
-
-// CSRF Token route for clients
+// 6. Built-in Session-based CSRF Protection
+// Issues and validates random cryptographic tokens per user session
 app.get('/api/csrf-token', (req, res) => {
-  return ok(res, { csrfToken: req.csrfToken() }, 'CSRF token issued');
+  if (!req.session.csrfSecret) {
+    req.session.csrfSecret = crypto.randomBytes(32).toString('hex');
+  }
+  return ok(res, { csrfToken: req.session.csrfSecret }, 'CSRF token issued');
 });
+
+// CSRF validation middleware for mutating requests
+const csrfProtection = (req, res, next) => {
+  // Safe HTTP methods do not mutate state
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  const clientToken = req.headers['csrf-token'] || req.headers['x-csrf-token'] || req.body?._csrf;
+  const sessionToken = req.session?.csrfSecret;
+
+  if (!clientToken || !sessionToken || clientToken !== sessionToken) {
+    return fail(res, 'Invalid or missing CSRF token', 403);
+  }
+
+  next();
+};
+
+app.use('/api', csrfProtection);
 
 // 7. Route Handlers
 app.use('/api/auth', authRoutes);
@@ -87,9 +108,6 @@ app.use((req, res) => {
 
 // 9. Centralized Error Handler
 app.use((err, req, res, next) => {
-  if (err.code === 'EBADCSRFTOKEN') {
-    return fail(res, 'Invalid or missing CSRF token', 403);
-  }
   console.error('[Error]', err);
   return fail(res, err.message || 'Internal server error', err.status || 500);
 });
@@ -103,4 +121,3 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 module.exports = app;
-

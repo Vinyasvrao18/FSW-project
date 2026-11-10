@@ -35,6 +35,7 @@ export async function apiRequest(endpoint, options = {}) {
     }
     if (cachedCsrfToken) {
       headers['CSRF-Token'] = cachedCsrfToken;
+      headers['X-CSRF-Token'] = cachedCsrfToken;
     }
   }
 
@@ -58,13 +59,19 @@ export async function apiRequest(endpoint, options = {}) {
     await fetchCsrfToken();
     if (cachedCsrfToken) {
       headers['CSRF-Token'] = cachedCsrfToken;
-      return fetch(`${API_BASE}${endpoint}`, {
+      headers['X-CSRF-Token'] = cachedCsrfToken;
+      const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         method,
         headers,
         body,
         credentials: 'include'
-      }).then(r => r.json());
+      });
+      const retryData = await retryResponse.json();
+      if (!retryResponse.ok) {
+        throw new Error(retryData.message || 'Request failed');
+      }
+      return retryData;
     }
   }
 
@@ -93,4 +100,3 @@ export const securityApi = {
   getHistory: (params = '') => apiRequest(`/history${params}`, { method: 'GET' }),
   getDashboardSummary: () => apiRequest('/history/summary/dashboard', { method: 'GET' })
 };
-
