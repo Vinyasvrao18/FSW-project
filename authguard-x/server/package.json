@@ -1,0 +1,30 @@
+{
+  "name": "authguard-x-server",
+  "version": "1.0.0",
+  "description": "AuthGuard-X Security Engine Backend",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "jest --runInBand --detectOpenHandles"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "csurf": "^1.11.0",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
+    "multer": "^1.4.5-lts.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.4",
+    "supertest": "^7.0.0"
+  }
+}
+
