@@ -3,7 +3,7 @@
  * and attaches CSRF tokens for mutating requests (POST, PUT, DELETE, PATCH).
  */
 
-const API_BASE = import.meta.env?.VITE_API_BASE || 'http://localhost:5000/api';
+const API_BASE = import.meta.env?.VITE_API_BASE || 'http://localhost:5001/api';
 
 let cachedCsrfToken = null;
 

@@ -16,7 +16,7 @@ const { ok, fail } = require('./helpers');
 const app = express();
 
 const SESSION_SECRET = process.env.SESSION_SECRET || 'authguard_dev_secret_key_1234567890';
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5120';
 
 // 1. Security Headers via Helmet
 app.use(helmet());
@@ -114,7 +114,7 @@ app.use((err, req, res, next) => {
 
 // Start server if executed directly
 if (process.env.NODE_ENV !== 'test') {
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => {
     console.log(`🛡️  AuthGuard-X Server listening on port ${PORT}`);
   });
