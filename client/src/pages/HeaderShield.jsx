@@ -1,103 +1,189 @@
 import React, { useState } from 'react';
 import { securityApi } from '../api';
 import { ResultTable } from '../components/ResultTable';
-import { StatusBadge } from '../components/StatusBadge';
 import { Alert } from '../components/Alert';
 
 export default function HeaderShield() {
-  const [targetUrl, setTargetUrl] = useState('');
-  const [result, setResult] = useState(null);
+  const [url, setUrl] = useState('');
+  const [result, setResult] = useState(null);   // null = not scanned yet
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleScan = async (e) => {
-    e.preventDefault();
+  async function handleScan(event) {
+    event.preventDefault();
     setError('');
-    setLoading(true);
     setResult(null);
+    setLoading(true);
 
     try {
-      const res = await securityApi.scanHeaders(targetUrl);
-      setResult(res.data);
-    } catch (err) {
-      setError(err.message || 'Scan failed');
+      const response = await securityApi.scanHeaders(url);
+      setResult(response.data);
+    } catch (error) {
+      setError(error.message || 'Scan failed. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  function handleReset() {
+    setResult(null);
+    setError('');
+    setUrl('');
+  }
 
   const columns = [
-    { header: 'Security Header', accessor: 'header', render: (r) => <span className="font-mono text-xs font-semibold">{r.header}</span> },
     {
-      header: 'Status',
-      accessor: 'present',
-      render: (r) => (
-        <span className={`px-2 py-0.5 rounded text-xs font-bold ${r.present ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-          {r.present ? 'FOUND' : 'MISSING'}
+      header: 'Header',
+      accessor: 'header',
+      render: (row) => (
+        // Show header names in monospace so they are easy to read
+        <span className="font-mono text-xs font-semibold text-slate-700">
+          {row.header}
         </span>
       )
     },
-    { header: 'Weight', accessor: 'weight', render: (r) => <span>{r.weight} pts</span> },
-    { header: 'Description', accessor: 'description' },
     {
-      header: 'Observed Value',
-      accessor: 'value',
-      render: (r) => (
-        <span className="font-mono text-xs text-slate-600 truncate max-w-xs block" title={r.value || ''}>
-          {r.value || '-'}
+      header: 'Status',
+      accessor: 'status',
+      render: (row) => {
+        // Status is shown as a text label AND colour — never colour alone
+        const isPresent = row.status === 'present';
+        return (
+          <span
+            className={
+              isPresent
+                ? 'inline-block px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800'
+                : 'inline-block px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800'
+            }
+          >
+            {isPresent ? 'Present' : 'Missing'}
+          </span>
+        );
+      }
+    },
+    {
+      header: 'Purpose',
+      accessor: 'purpose',
+      render: (row) => (
+        <span className="text-sm text-slate-600">{row.purpose}</span>
+      )
+    },
+    {
+      header: 'Recommendation',
+      accessor: 'recommendation',
+      render: (row) => (
+        // Show a dash when present and no recommendation is needed
+        <span className="text-sm text-slate-600">
+          {row.recommendation || '—'}
         </span>
       )
     }
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
+
       <div>
         <h1 className="text-2xl font-bold text-slate-900">HeaderShield</h1>
-        <p className="text-sm text-slate-500">Analyze HTTP response headers and ensure defense-in-depth compliance.</p>
+        <p className="text-sm text-slate-500 mt-1">
+          Check which browser security headers a website sends.
+        </p>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+        This reviews response headers only. It is not a full security audit.
       </div>
 
       <Alert type="error" message={error} onClose={() => setError('')} />
 
-      <form onSubmit={handleScan} className="flex gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <input
-          type="url"
-          value={targetUrl}
-          onChange={(e) => setTargetUrl(e.target.value)}
-          placeholder="https://example.com"
-          required
-          className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 text-sm"
-        >
-          {loading ? 'Scanning...' : 'Inspect Headers'}
-        </button>
-      </form>
+      {!result && (
+        <form onSubmit={handleScan} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+          <div>
+            <label
+              htmlFor="website-url"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              Website URL
+            </label>
+            <input
+              id="website-url"
+              type="url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://example.com"
+              required
+              disabled={loading}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
+            />
+            <p className="mt-1.5 text-xs text-slate-500">
+              Only approved demo sites can be scanned.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !url}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            {loading ? 'Checking response headers…' : 'Scan headers'}
+          </button>
+        </form>
+      )}
 
       {result && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <p className="text-xs uppercase font-bold text-slate-400">Target Analyzed</p>
-              <p className="font-mono text-base font-semibold text-slate-800">{result.targetUrl}</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-xs uppercase font-bold text-slate-400">Security Score</p>
-                <p className="text-2xl font-black text-indigo-600">{result.score}/100</p>
-              </div>
-              <StatusBadge status={result.status} />
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5">
+
+          <div className="pb-4 border-b border-slate-100 space-y-1">
+            <p className="text-xs uppercase font-semibold text-slate-400 tracking-wide">
+              Target scanned
+            </p>
+            <p className="font-mono text-sm font-semibold text-slate-800 break-all">
+              {result.target}
+            </p>
+            <p className="text-sm text-slate-500">
+              HTTP status: <span className="font-mono font-semibold text-slate-700">{result.httpStatus}</span>
+            </p>
+          </div>
+
+          <div>
+            <h2 className="font-semibold">Weighted header score</h2>
+            <p>{result.score}/100 · {result.status}</p>
+            <p className="text-sm text-slate-500">Based on six headers, including X-Frame-Options.</p>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Policy checks</p>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span className="text-slate-600">
+                Checked: <strong>{result.summary.checked}</strong>
+              </span>
+              <span className="text-emerald-700">
+                Present: <strong>{result.summary.present}</strong>
+              </span>
+              <span className="text-rose-700">
+                Missing: <strong>{result.summary.missing}</strong>
+              </span>
             </div>
           </div>
 
-          <h3 className="font-semibold text-slate-800">Evaluated Headers</h3>
-          <ResultTable columns={columns} data={result.checks} />
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Header findings</p>
+            <ResultTable columns={columns} data={result.findings} />
+          </div>
+
+          <p className="text-xs text-slate-500 italic border-t border-slate-100 pt-3">
+            {result.limitations}
+          </p>
+
+          <button
+            type="button"
+            onClick={handleReset}
+            className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            Run another scan
+          </button>
         </div>
       )}
     </div>
   );
 }
-

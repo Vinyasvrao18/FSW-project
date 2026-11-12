@@ -1,104 +1,174 @@
 import React, { useState } from 'react';
 import { securityApi } from '../api';
-import { StatusBadge } from '../components/StatusBadge';
-import { ResultTable } from '../components/ResultTable';
 import { Alert } from '../components/Alert';
 
 export default function PhishCheck() {
   const [url, setUrl] = useState('');
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null);   // null = not analysed yet
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleCheck = async (e) => {
-    e.preventDefault();
+  async function handleAnalyse(event) {
+    event.preventDefault();
     setError('');
-    setLoading(true);
     setResult(null);
+    setLoading(true);
 
     try {
-      const res = await securityApi.checkPhish(url);
-      setResult(res.data);
-    } catch (err) {
-      setError(err.message || 'Check failed');
+      // checkPhishingUrl calls /phishcheck/check which the server maps to /analyze
+      const response = await securityApi.checkPhishingUrl(url);
+      setResult(response.data);
+    } catch (error) {
+      setError(error.message || 'Analysis failed. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const columns = [
-    { header: 'Rule Triggered', accessor: 'rule', render: (r) => <span className="font-mono text-xs font-semibold">{r.rule}</span> },
-    {
-      header: 'Severity',
-      accessor: 'severity',
-      render: (r) => (
-        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-          r.severity === 'HIGH' ? 'bg-rose-100 text-rose-800' :
-          r.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'
-        }`}>
-          {r.severity}
-        </span>
-      )
-    },
-    { header: 'Finding Description', accessor: 'message' }
-  ];
+  function handleReset() {
+    setResult(null);
+    setError('');
+    setUrl('');
+  }
+
+  // Status is ALWAYS shown as text. Colour is support only.
+  function riskColour(level) {
+    switch ((level || '').toLowerCase()) {
+      case 'low':       return 'bg-emerald-100 text-emerald-800';
+      case 'medium':    return 'bg-amber-100 text-amber-800';
+      case 'high':      return 'bg-rose-100 text-rose-800';
+      case 'very high': return 'bg-rose-200 text-rose-900';
+      default:          return 'bg-slate-100 text-slate-700';
+    }
+  }
+
+  function riskLabel(level) {
+    switch ((level || '').toLowerCase()) {
+      case 'low':       return 'Low';
+      case 'medium':    return 'Medium';
+      case 'high':      return 'High';
+      case 'very high': return 'Very high';
+      default:          return level || 'Unknown';
+    }
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
+
       <div>
         <h1 className="text-2xl font-bold text-slate-900">PhishCheck</h1>
-        <p className="text-sm text-slate-500">Heuristic threat scoring and deceptive pattern analysis for URLs.</p>
+        <p className="text-sm text-slate-500 mt-1">
+          Inspect a URL for patterns commonly associated with phishing.
+        </p>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+        This is a heuristic check, not a guarantee that a link is safe or malicious.
+        The link is never opened.
       </div>
 
       <Alert type="error" message={error} onClose={() => setError('')} />
 
-      <form onSubmit={handleCheck} className="flex gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://secure-login.suspicious-domain.xyz"
-          required
-          className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 text-sm"
-        >
-          {loading ? 'Evaluating...' : 'Check URL'}
-        </button>
-      </form>
+      {!result && (
+        <form onSubmit={handleAnalyse} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+          <div>
+            <label
+              htmlFor="url-to-analyse"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              URL to analyse
+            </label>
+            <input
+              id="url-to-analyse"
+              type="text"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://example.com/login"
+              required
+              disabled={loading}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !url}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            {loading ? 'Analysing URL…' : 'Analyse URL'}
+          </button>
+        </form>
+      )}
 
       {result && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <p className="text-xs uppercase font-bold text-slate-400">Target URL</p>
-              <p className="font-mono text-sm font-semibold text-slate-800 break-all">{result.url}</p>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5">
+
+          <div className="pb-4 border-b border-slate-100 space-y-3">
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <span
+                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${riskColour(result.riskLevel)}`}
+              >
+                {riskLabel(result.riskLevel)}
+              </span>
+              <span className="text-sm text-slate-600">
+                Score: <strong className="text-slate-800">{result.score} / 100</strong>
+              </span>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-xs uppercase font-bold text-slate-400">Risk Score</p>
-                <p className={`text-2xl font-black ${result.riskScore > 50 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {result.riskScore}/100
-                </p>
-              </div>
-              <StatusBadge status={result.classification} />
+
+            <div>
+              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wide">
+                Host
+              </span>
+              <p className="font-mono text-sm text-slate-800 mt-0.5 break-all">
+                {result.hostname}
+              </p>
             </div>
           </div>
 
-          <h3 className="font-semibold text-slate-800">Triggered Heuristics</h3>
-          {result.findings.length > 0 ? (
-            <ResultTable columns={columns} data={result.findings} />
-          ) : (
-            <div className="p-4 bg-emerald-50 text-emerald-800 rounded-lg text-sm">
-              ✅ No high-risk phishing patterns or suspicious deceptive indicators detected in this URL.
-            </div>
-          )}
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-3">Triggered rules</p>
+
+            {result.findings && result.findings.length > 0 ? (
+              <ul className="space-y-2">
+                {result.findings.map((finding) => (
+                  <li
+                    key={finding.ruleId}
+                    className="border border-slate-200 rounded-lg px-4 py-3 text-sm space-y-1"
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-800">
+                        {finding.label}
+                      </span>
+                      <span className="text-xs font-mono text-slate-500">
+                        +{finding.weight} pts
+                      </span>
+                    </div>
+                    <p className="text-slate-600">{finding.explanation}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              // No rules triggered — still show the disclaimer
+              <div className="border border-slate-200 rounded-lg px-4 py-4 text-sm text-slate-600">
+                No suspicious patterns found.
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-500 italic border-t border-slate-100 pt-3">
+            {result.disclaimer}
+          </p>
+
+          <button
+            type="button"
+            onClick={handleReset}
+            className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            Analyse another URL
+          </button>
         </div>
       )}
     </div>
   );
 }
-

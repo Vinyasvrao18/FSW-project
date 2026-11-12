@@ -9,11 +9,11 @@ let cachedCsrfToken = null;
 
 export async function fetchCsrfToken() {
   try {
-    const res = await fetch(`${API_BASE}/csrf-token`, {
+    const response = await fetch(`${API_BASE}/csrf-token`, {
       method: 'GET',
       credentials: 'include'
     });
-    const json = await res.json();
+    const json = await response.json();
     if (json.success && json.data?.csrfToken) {
       cachedCsrfToken = json.data.csrfToken;
       return cachedCsrfToken;
@@ -28,51 +28,27 @@ export async function apiRequest(endpoint, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const headers = { ...(options.headers || {}) };
 
-  // Attach CSRF header on state mutations
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-    if (!cachedCsrfToken) {
-      await fetchCsrfToken();
-    }
-    if (cachedCsrfToken) {
-      headers['CSRF-Token'] = cachedCsrfToken;
-      headers['X-CSRF-Token'] = cachedCsrfToken;
-    }
-  }
-
-  // Handle JSON body if not FormData
+  const needsCsrfToken = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
   let body = options.body;
-  if (body && !(body instanceof FormData) && typeof body === 'object') {
+  if (body && typeof body === 'object' && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    method,
-    headers,
-    body,
-    credentials: 'include'
-  });
-
-  // If CSRF token is rejected, refresh and retry once
-  if (response.status === 403 && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-    await fetchCsrfToken();
-    if (cachedCsrfToken) {
+  async function sendRequest() {
+    if (needsCsrfToken && cachedCsrfToken) {
       headers['CSRF-Token'] = cachedCsrfToken;
       headers['X-CSRF-Token'] = cachedCsrfToken;
-      const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        method,
-        headers,
-        body,
-        credentials: 'include'
-      });
-      const retryData = await retryResponse.json();
-      if (!retryResponse.ok) {
-        throw new Error(retryData.message || 'Request failed');
-      }
-      return retryData;
     }
+    return fetch(`${API_BASE}${endpoint}`, {
+      ...options, method, headers, body, credentials: 'include'
+    });
+  }
+
+  if (needsCsrfToken && !cachedCsrfToken) await fetchCsrfToken();
+  let response = await sendRequest();
+  if (needsCsrfToken && response.status === 403 && await fetchCsrfToken()) {
+    response = await sendRequest();
   }
 
   const data = await response.json();
@@ -84,7 +60,7 @@ export async function apiRequest(endpoint, options = {}) {
 }
 
 // Authentication Helpers
-export const authApi = {
+export const authenticationApi = {
   login: (credentials) => apiRequest('/auth/login', { method: 'POST', body: credentials }),
   register: (payload) => apiRequest('/auth/register', { method: 'POST', body: payload }),
   logout: () => apiRequest('/auth/logout', { method: 'POST' }),
@@ -94,9 +70,9 @@ export const authApi = {
 // Security Modules API
 export const securityApi = {
   scanHeaders: (targetUrl) => apiRequest('/headershield/scan', { method: 'POST', body: { targetUrl } }),
-  checkPhish: (url) => apiRequest('/phishcheck/check', { method: 'POST', body: { url } }),
+  checkPhishingUrl: (url) => apiRequest('/phishcheck/analyze', { method: 'POST', body: { url } }),
   checkFileIntegrity: (formData) => apiRequest('/fileintegrity/check', { method: 'POST', body: formData }),
   getFileBaselines: () => apiRequest('/fileintegrity/baselines', { method: 'GET' }),
-  getHistory: (params = '') => apiRequest(`/history${params}`, { method: 'GET' }),
+  getHistory: (queryParameters = '') => apiRequest(`/history${queryParameters}`, { method: 'GET' }),
   getDashboardSummary: () => apiRequest('/history/summary/dashboard', { method: 'GET' })
 };

@@ -24,4 +24,3 @@ export function Alert({ type = 'info', message, onClose }) {
     </div>
   );
 }
-

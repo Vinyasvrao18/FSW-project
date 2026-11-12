@@ -29,14 +29,24 @@ authguard-x/
 ### 1. Server Setup
 ```bash
 cd server
-npm install
+npm ci
 npm run dev
 ```
 
 ### 2. Client Setup
 ```bash
 cd client
-npm install
+npm ci
 npm run dev
 ```
 
+
+Use Node.js 22. Run the server and client in separate terminals, then open http://localhost:5173 and register an account. SQLite creates the database at first start.
+
+## Source versions
+
+The account system, dashboard and weighted header checks come from FSW project.zip. The detailed header findings and extended phishing analysis come from FSW.zip. The selected-file preview and ten-record history pages are adapted from fsw1.zip.
+
+The interface uses POST /api/phishcheck/analyze for extended analysis. Existing clients can use POST /api/phishcheck/check for the original scoring rules. HeaderShield accepts both targetUrl and url. Its allowlist defaults to example.com. Set ALLOWED_SCAN_HOSTS in the server environment for additional approved hostnames.
+
+Run npm test in the server directory and npm run build in the client directory. The HeaderShield tests mock outbound requests. To reuse a compatible database, set DB_PATH before starting the server.

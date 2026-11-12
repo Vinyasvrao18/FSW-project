@@ -1,12 +1,12 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = process.env.DB_PATH || path.resolve(__dirname, 'authguard.db');
-const db = new sqlite3.Database(dbPath);
+const databasePath = process.env.DB_PATH || path.resolve(__dirname, 'authguard.db');
+const database = new sqlite3.Database(databasePath);
 
-db.serialize(() => {
+database.serialize(() => {
   // Users table
-  db.run(`
+  database.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
@@ -17,7 +17,7 @@ db.serialize(() => {
   `);
 
   // History / Audit Logs table
-  db.run(`
+  database.run(`
     CREATE TABLE IF NOT EXISTS scan_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -32,7 +32,7 @@ db.serialize(() => {
   `);
 
   // File integrity baseline hashes
-  db.run(`
+  database.run(`
     CREATE TABLE IF NOT EXISTS file_hashes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -45,5 +45,4 @@ db.serialize(() => {
   `);
 });
 
-module.exports = db;
-
+module.exports = database;

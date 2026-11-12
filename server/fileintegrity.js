@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const crypto = require('crypto');
-const db = require('./db');
+const database = require('./db');
 const { ok, fail, isAuthenticated } = require('./helpers');
 
 const upload = multer({
@@ -12,15 +12,15 @@ const upload = multer({
 const router = express.Router();
 
 // Upload file, calculate SHA-256 and store baseline or compare
-router.post('/check', isAuthenticated, upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return fail(res, 'No file uploaded', 422);
+router.post('/check', isAuthenticated, upload.single('file'), (request, response) => {
+  if (!request.file) {
+    return fail(response, 'No file uploaded', 422);
   }
 
-  const { expectedHash } = req.body;
-  const hash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
-  const filename = req.file.originalname;
-  const fileSize = req.file.size;
+  const { expectedHash } = request.body;
+  const hash = crypto.createHash('sha256').update(request.file.buffer).digest('hex');
+  const filename = request.file.originalname;
+  const fileSize = request.file.size;
 
   let match = null;
   let status = 'RECORDED';
@@ -31,16 +31,16 @@ router.post('/check', isAuthenticated, upload.single('file'), (req, res) => {
   }
 
   // Record baseline if not comparing or if user chose to register
-  db.run(
+  database.run(
     `INSERT INTO file_hashes (user_id, filename, sha256, file_size) VALUES (?, ?, ?, ?)`,
-    [req.session.userId, filename, hash, fileSize]
+    [request.session.userId, filename, hash, fileSize]
   );
 
   // Record into audit log
-  db.run(
+  database.run(
     `INSERT INTO scan_history (user_id, module, target, status, score, details) VALUES (?, ?, ?, ?, ?, ?)`,
     [
-      req.session.userId,
+      request.session.userId,
       'FileIntegrity',
       filename,
       status,
@@ -49,7 +49,7 @@ router.post('/check', isAuthenticated, upload.single('file'), (req, res) => {
     ]
   );
 
-  return ok(res, {
+  return ok(response, {
     filename,
     fileSize,
     calculatedHash: hash,
@@ -60,16 +60,15 @@ router.post('/check', isAuthenticated, upload.single('file'), (req, res) => {
 });
 
 // List saved baselines
-router.get('/baselines', isAuthenticated, (req, res) => {
-  db.all(
+router.get('/baselines', isAuthenticated, (request, response) => {
+  database.all(
     `SELECT id, filename, sha256, file_size, created_at FROM file_hashes WHERE user_id = ? ORDER BY created_at DESC`,
-    [req.session.userId],
-    (err, rows) => {
-      if (err) return fail(res, 'Failed to fetch baselines', 500);
-      return ok(res, rows, 'Baselines fetched');
+    [request.session.userId],
+    (error, rows) => {
+      if (error) return fail(response, 'Failed to fetch baselines', 500);
+      return ok(response, rows, 'Baselines fetched');
     }
   );
 });
 
 module.exports = router;
-

@@ -10,19 +10,19 @@ export function ResultTable({ columns, data }) {
       <table className="min-w-full divide-y divide-slate-200 text-sm text-left">
         <thead className="bg-slate-50">
           <tr>
-            {columns.map((col, idx) => (
-              <th key={idx} className="px-4 py-3 font-medium text-slate-600">
-                {col.header}
+            {columns.map((column, index) => (
+              <th key={index} className="px-4 py-3 font-medium text-slate-600">
+                {column.header}
               </th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 bg-white">
-          {data.map((row, rowIdx) => (
-            <tr key={rowIdx} className="hover:bg-slate-50 transition-colors">
-              {columns.map((col, colIdx) => (
-                <td key={colIdx} className="px-4 py-3 text-slate-700">
-                  {col.render ? col.render(row) : row[col.accessor]}
+          {data.map((row, rowIndex) => (
+            <tr key={rowIndex} className="hover:bg-slate-50 transition-colors">
+              {columns.map((column, columnIndex) => (
+                <td key={columnIndex} className="px-4 py-3 text-slate-700">
+                  {column.render ? column.render(row) : row[column.accessor]}
                 </td>
               ))}
             </tr>
@@ -32,4 +32,3 @@ export function ResultTable({ columns, data }) {
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { authApi } from '../api';
+import { authenticationApi } from '../api';
 import { Alert } from '../components/Alert';
 
 export default function Login({ setUser }) {
@@ -10,42 +10,46 @@ export default function Login({ setUser }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = await authApi.login({ email, password });
-      setUser(res.data);
+      const response = await authenticationApi.login({ email, password });
+      setUser(response.data);
       navigate('/dashboard');
-    } catch (err) {
-      setError(err.message || 'Login failed');
+    } catch (error) {
+      setError(error.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-6 bg-white rounded-xl shadow-md border border-slate-200">
-      <h2 className="text-2xl font-bold text-center text-slate-900 mb-6">Sign In to AuthGuard-X</h2>
+    <div className="account-panel">
+      <h1 className="account-title">Sign In to AuthGuard-X</h1>
       <Alert type="error" message={error} onClose={() => setError('')} />
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700">Email Address</label>
+          <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email Address</label>
           <input
+            id="email"
+            autoComplete="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(event) => setEmail(event.target.value)}
             required
             className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700">Password</label>
+          <label htmlFor="password" className="block text-sm font-medium text-slate-700">Password</label>
           <input
+            id="password"
+            autoComplete="current-password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             required
             className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
           />
@@ -64,4 +68,3 @@ export default function Login({ setUser }) {
     </div>
   );
 }
-

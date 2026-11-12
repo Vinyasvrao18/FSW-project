@@ -12,4 +12,3 @@ export function EmptyState({ title = 'No data found', description = 'Try perform
     </div>
   );
 }
-

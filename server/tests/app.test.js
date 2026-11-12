@@ -3,15 +3,14 @@ const app = require('../app');
 
 describe('AuthGuard-X Core API', () => {
   it('GET /api/health should return status 200', async () => {
-    const res = await request(app).get('/api/health');
-    expect(res.statusCode).toEqual(200);
-    expect(res.body.success).toBe(true);
+    const response = await request(app).get('/api/health');
+    expect(response.statusCode).toEqual(200);
+    expect(response.body.success).toBe(true);
   });
 
   it('GET /api/csrf-token should provide a CSRF token', async () => {
-    const res = await request(app).get('/api/csrf-token');
-    expect(res.statusCode).toEqual(200);
-    expect(res.body.data.csrfToken).toBeDefined();
+    const response = await request(app).get('/api/csrf-token');
+    expect(response.statusCode).toEqual(200);
+    expect(response.body.data.csrfToken).toBeDefined();
   });
 });
-

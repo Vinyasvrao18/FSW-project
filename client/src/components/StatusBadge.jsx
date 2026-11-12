@@ -5,12 +5,16 @@ export function StatusBadge({ status }) {
     switch (status?.toUpperCase()) {
       case 'STRONG':
       case 'VERIFIED':
+      case 'LOW':
       case 'SAFE':
         return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      case 'MEDIUM':
       case 'MODERATE':
       case 'SUSPICIOUS':
       case 'RECORDED':
         return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'VERY HIGH':
+      case 'HIGH':
       case 'WEAK':
       case 'HIGH_RISK':
       case 'TAMPERED':
@@ -26,4 +30,3 @@ export function StatusBadge({ status }) {
     </span>
   );
 }
-

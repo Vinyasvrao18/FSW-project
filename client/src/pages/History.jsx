@@ -4,49 +4,65 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ResultTable } from '../components/ResultTable';
 import { EmptyState } from '../components/EmptyState';
 
+const PAGE_SIZE = 10;
+
 export default function History() {
   const [history, setHistory] = useState([]);
   const [filterModule, setFilterModule] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const fetchHistory = (module = '') => {
-    setLoading(true);
-    const query = module ? `?module=${module}` : '';
-    securityApi.getHistory(query)
-      .then(res => setHistory(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const [page, setPage] = useState(1);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    fetchHistory(filterModule);
-  }, [filterModule]);
+    let active = true;
+    async function loadPage() {
+      setLoading(true);
+      setErrorMessage('');
+      const parameters = new URLSearchParams({
+        limit: PAGE_SIZE + 1,
+        offset: (page - 1) * PAGE_SIZE
+      });
+      if (filterModule) parameters.set('module', filterModule);
+      try {
+        const response = await securityApi.getHistory('?' + parameters);
+        if (active) setHistory(response.data);
+      } catch (error) {
+        if (active) setErrorMessage(error.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadPage();
+    return () => { active = false; };
+  }, [filterModule, page]);
 
   const columns = [
     {
       header: 'Module',
       accessor: 'module',
-      render: (r) => <span className="font-bold text-xs uppercase text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{r.module}</span>
+      render: (record) => <span className="font-bold text-xs uppercase text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{record.module}</span>
     },
     {
       header: 'Target',
       accessor: 'target',
-      render: (r) => <span className="font-mono text-xs text-slate-800 truncate max-w-xs block" title={r.target}>{r.target}</span>
+      render: (record) => <span className="font-mono text-xs text-slate-800 truncate max-w-xs block" title={record.target}>{record.target}</span>
     },
     {
       header: 'Status',
       accessor: 'status',
-      render: (r) => <StatusBadge status={r.status} />
+      render: (record) => <StatusBadge status={record.status} />
     },
     {
       header: 'Score',
       accessor: 'score',
-      render: (r) => <span>{r.score !== null ? `${r.score}/100` : '-'}</span>
+      render: (record) => <span>{record.score !== null ? `${record.score}/100` : '-'}</span>
     },
     {
       header: 'Timestamp',
       accessor: 'created_at',
-      render: (r) => <span className="text-xs text-slate-500">{new Date(r.created_at).toLocaleString()}</span>
+      render: (record) => <span className="text-xs text-slate-500">{new Date(record.created_at).toLocaleString()}</span>
     }
   ];
 
@@ -59,10 +75,13 @@ export default function History() {
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold text-slate-500">Filter by:</span>
-          <select
+          <label htmlFor="module-filter" className="text-xs font-semibold text-slate-500">Filter by module</label>
+          <select id="module-filter"
             value={filterModule}
-            onChange={(e) => setFilterModule(e.target.value)}
+            onChange={(event) => {
+              setFilterModule(event.target.value);
+              setPage(1);
+            }}
             className="text-sm px-3 py-1.5 border border-slate-300 rounded-md bg-white focus:ring-indigo-500"
           >
             <option value="">All Modules</option>
@@ -76,13 +95,21 @@ export default function History() {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading history logs...</div>
+        ) : errorMessage ? (
+          <p role="alert">{errorMessage}</p>
         ) : history.length > 0 ? (
-          <ResultTable columns={columns} data={history} />
+          <ResultTable columns={columns} data={history.slice(0, PAGE_SIZE)} />
         ) : (
           <EmptyState title="No history found" description="No scan events recorded matching your filter." />
+        )}
+        {!loading && !errorMessage && (page > 1 || history.length > PAGE_SIZE) && (
+          <nav aria-label="History pages" className="pagination">
+            <button disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button>
+            <span>Page {page}</span>
+            <button disabled={history.length <= PAGE_SIZE} onClick={() => setPage(page + 1)}>Next</button>
+          </nav>
         )}
       </div>
     </div>
   );
 }
-

@@ -1,44 +1,44 @@
 const express = require('express');
-const db = require('./db');
+const database = require('./db');
 const { ok, fail, isAuthenticated } = require('./helpers');
 
 const router = express.Router();
 
 // Get scan history list with optional module filter and pagination
-router.get('/', isAuthenticated, (req, res) => {
-  const { module, limit = 50, offset = 0 } = req.query;
+router.get('/', isAuthenticated, (request, response) => {
+  const { module, limit = 50, offset = 0 } = request.query;
 
   let query = `SELECT id, module, target, status, score, details, created_at FROM scan_history WHERE user_id = ?`;
-  const params = [req.session.userId];
+  const queryParameters = [request.session.userId];
 
   if (module) {
     query += ` AND module = ?`;
-    params.push(module);
+    queryParameters.push(module);
   }
 
-  query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-  params.push(Number(limit), Number(offset));
+  query += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`;
+  queryParameters.push(Number(limit), Number(offset));
 
-  db.all(query, params, (err, rows) => {
-    if (err) return fail(res, 'Failed to fetch history', 500);
+  database.all(query, queryParameters, (error, rows) => {
+    if (error) return fail(response, 'Failed to fetch history', 500);
 
-    const parsedRows = rows.map(r => ({
-      ...r,
-      details: r.details ? JSON.parse(r.details) : null
+    const parsedRows = rows.map(record => ({
+      ...record,
+      details: record.details ? JSON.parse(record.details) : null
     }));
 
-    return ok(res, parsedRows, 'History retrieved');
+    return ok(response, parsedRows, 'History retrieved');
   });
 });
 
 // Single history detail
-router.get('/:id', isAuthenticated, (req, res) => {
-  db.get(
+router.get('/:id', isAuthenticated, (request, response) => {
+  database.get(
     `SELECT * FROM scan_history WHERE id = ? AND user_id = ?`,
-    [req.params.id, req.session.userId],
-    (err, row) => {
-      if (err || !row) return fail(res, 'Record not found', 404);
-      return ok(res, {
+    [request.params.id, request.session.userId],
+    (error, row) => {
+      if (error || !row) return fail(response, 'Record not found', 404);
+      return ok(response, {
         ...row,
         details: row.details ? JSON.parse(row.details) : null
       }, 'Record details retrieved');
@@ -47,8 +47,8 @@ router.get('/:id', isAuthenticated, (req, res) => {
 });
 
 // Dashboard summary metrics
-router.get('/summary/dashboard', isAuthenticated, (req, res) => {
-  const userId = req.session.userId;
+router.get('/summary/dashboard', isAuthenticated, (request, response) => {
+  const userId = request.session.userId;
 
   const summaryQuery = `
     SELECT 
@@ -56,22 +56,22 @@ router.get('/summary/dashboard', isAuthenticated, (req, res) => {
       SUM(CASE WHEN module = 'HeaderShield' THEN 1 ELSE 0 END) as headerShieldCount,
       SUM(CASE WHEN module = 'PhishCheck' THEN 1 ELSE 0 END) as phishCheckCount,
       SUM(CASE WHEN module = 'FileIntegrity' THEN 1 ELSE 0 END) as fileIntegrityCount,
-      SUM(CASE WHEN status IN ('WEAK', 'HIGH_RISK', 'TAMPERED') THEN 1 ELSE 0 END) as highAlertsCount,
+      SUM(CASE WHEN status IN ('WEAK', 'HIGH_RISK', 'TAMPERED', 'high', 'very high') THEN 1 ELSE 0 END) as highAlertsCount,
       AVG(score) as averageScore
     FROM scan_history
     WHERE user_id = ?
   `;
 
-  db.get(summaryQuery, [userId], (err, summary) => {
-    if (err) return fail(res, 'Failed to compute dashboard metrics', 500);
+  database.get(summaryQuery, [userId], (error, summary) => {
+    if (error) return fail(response, 'Failed to compute dashboard metrics', 500);
 
-    db.all(
-      `SELECT id, module, target, status, score, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 5`,
+    database.all(
+      `SELECT id, module, target, status, score, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 5`,
       [userId],
-      (recentErr, recentScans) => {
-        if (recentErr) return fail(res, 'Failed to load recent scans', 500);
+      (recentScansError, recentScans) => {
+        if (recentScansError) return fail(response, 'Failed to load recent scans', 500);
 
-        return ok(res, {
+        return ok(response, {
           totalScans: summary.totalScans || 0,
           headerShieldCount: summary.headerShieldCount || 0,
           phishCheckCount: summary.phishCheckCount || 0,
@@ -86,4 +86,3 @@ router.get('/summary/dashboard', isAuthenticated, (req, res) => {
 });
 
 module.exports = router;
-

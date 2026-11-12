@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { authApi } from './api';
+import { authenticationApi } from './api';
 import { Layout } from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -12,16 +12,16 @@ import History from './pages/History';
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [checkingAuthentication, setCheckingAuthentication] = useState(true);
 
   useEffect(() => {
-    authApi.me()
-      .then(res => setUser(res.data))
+    authenticationApi.me()
+      .then(response => setUser(response.data))
       .catch(() => setUser(null))
-      .finally(() => setCheckingAuth(false));
+      .finally(() => setCheckingAuthentication(false));
   }, []);
 
-  if (checkingAuth) {
+  if (checkingAuthentication) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-500">
         Loading AuthGuard-X...
@@ -46,4 +46,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-

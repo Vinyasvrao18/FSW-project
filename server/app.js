@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
 const cors = require('cors');
 
-const authRoutes = require('./auth');
+const authenticationRoutes = require('./auth');
 const headerShieldRoutes = require('./headershield');
 const phishCheckRoutes = require('./phishcheck');
 const fileIntegrityRoutes = require('./fileintegrity');
@@ -39,15 +39,15 @@ const generalLimiter = rateLimit({
   message: { success: false, message: 'Too many requests from this IP, please try again later.' }
 });
 
-const authLimiter = rateLimit({
+const authenticationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 25,
   message: { success: false, message: 'Too many authentication attempts, please try again later.' }
 });
 
 app.use('/api/', generalLimiter);
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/login', authenticationLimiter);
+app.use('/api/auth/register', authenticationLimiter);
 
 // 5. Session Setup
 app.use(session({
@@ -65,25 +65,25 @@ app.use(session({
 
 // 6. Built-in Session-based CSRF Protection
 // Issues and validates random cryptographic tokens per user session
-app.get('/api/csrf-token', (req, res) => {
-  if (!req.session.csrfSecret) {
-    req.session.csrfSecret = crypto.randomBytes(32).toString('hex');
+app.get('/api/csrf-token', (request, response) => {
+  if (!request.session.csrfSecret) {
+    request.session.csrfSecret = crypto.randomBytes(32).toString('hex');
   }
-  return ok(res, { csrfToken: req.session.csrfSecret }, 'CSRF token issued');
+  return ok(response, { csrfToken: request.session.csrfSecret }, 'CSRF token issued');
 });
 
 // CSRF validation middleware for mutating requests
-const csrfProtection = (req, res, next) => {
+const csrfProtection = (request, response, next) => {
   // Safe HTTP methods do not mutate state
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
     return next();
   }
 
-  const clientToken = req.headers['csrf-token'] || req.headers['x-csrf-token'] || req.body?._csrf;
-  const sessionToken = req.session?.csrfSecret;
+  const clientToken = request.headers['csrf-token'] || request.headers['x-csrf-token'] || request.body?._csrf;
+  const sessionToken = request.session?.csrfSecret;
 
   if (!clientToken || !sessionToken || clientToken !== sessionToken) {
-    return fail(res, 'Invalid or missing CSRF token', 403);
+    return fail(response, 'Invalid or missing CSRF token', 403);
   }
 
   next();
@@ -92,24 +92,24 @@ const csrfProtection = (req, res, next) => {
 app.use('/api', csrfProtection);
 
 // 7. Route Handlers
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authenticationRoutes);
 app.use('/api/headershield', headerShieldRoutes);
 app.use('/api/phishcheck', phishCheckRoutes);
 app.use('/api/fileintegrity', fileIntegrityRoutes);
 app.use('/api/history', historyRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => ok(res, { status: 'healthy', time: new Date() }, 'API online'));
+app.get('/api/health', (request, response) => ok(response, { status: 'healthy', time: new Date() }, 'API online'));
 
 // 8. 404 Handler
-app.use((req, res) => {
-  return fail(res, 'Endpoint not found', 404);
+app.use((request, response) => {
+  return fail(response, 'Endpoint not found', 404);
 });
 
 // 9. Centralized Error Handler
-app.use((err, req, res, next) => {
-  console.error('[Error]', err);
-  return fail(res, err.message || 'Internal server error', err.status || 500);
+app.use((error, request, response, next) => {
+  console.error('[Error]', error);
+  return fail(response, error.message || 'Internal server error', error.status || 500);
 });
 
 // Start server if executed directly
