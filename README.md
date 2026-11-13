@@ -25,6 +25,10 @@ authguard-x/
 
 ## 🚀 Quick Start
 
+With both sets of dependencies installed, run `node start.js` from the project folder to start the API and interface together. Keep that terminal open. Stop any other development servers on ports 5000 and 5173 first. On a new database, select Register to create your account, then use that same email and password for later logins.
+
+For first-time installation or starting the services separately:
+
 ### 1. Server Setup
 ```bash
 cd server
