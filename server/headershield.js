@@ -139,6 +139,10 @@ function checkOneHeader(headerDefinition, receivedHeaders, isHttps) {
   };
 }
 
+router.get('/hosts', isAuthenticated, (request, response) => {
+  return ok(response, ALLOWED_HOSTS);
+});
+
 router.post('/scan', isAuthenticated, async (request, response) => {
   const rawUrl = request.body.url ?? request.body.targetUrl;
 
@@ -151,7 +155,7 @@ router.post('/scan', isAuthenticated, async (request, response) => {
 
   // 2. SSRF defence: reject any host not on the allowlist
   if (!isHostAllowed(parsed.hostname)) {
-    return fail(response, 'This site is not allowed in this demo.', 403);
+    return fail(response, 'This hostname is not allowed. Choose an approved hostname listed in HeaderShield.', 403);
   }
 
   // Normalised URL = href produced by the URL parser (strips extra whitespace etc.)
@@ -171,7 +175,9 @@ router.post('/scan', isAuthenticated, async (request, response) => {
     };
     let upstreamResponse = await axios.head(normalisedUrl, requestOptions);
     if ([405, 501].includes(upstreamResponse.status)) {
-      upstreamResponse = await axios.get(normalisedUrl, { ...requestOptions, maxContentLength: 512 });
+      // The headers are available immediately. Close the stream before reading the page body.
+      upstreamResponse = await axios.get(normalisedUrl, { ...requestOptions, responseType: 'stream' });
+      upstreamResponse.data.destroy();
     }
 
     httpStatus = upstreamResponse.status;

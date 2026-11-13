@@ -69,6 +69,7 @@ export const authenticationApi = {
 
 // Security Modules API
 export const securityApi = {
+  getApprovedHeaderHosts: () => apiRequest('/headershield/hosts'),
   scanHeaders: (targetUrl) => apiRequest('/headershield/scan', { method: 'POST', body: { targetUrl } }),
   checkPhishingUrl: (url) => apiRequest('/phishcheck/analyze', { method: 'POST', body: { url } }),
   checkFileIntegrity: (formData) => apiRequest('/fileintegrity/check', { method: 'POST', body: formData }),

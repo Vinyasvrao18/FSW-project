@@ -304,9 +304,11 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
   test('falls back to GET when HEAD returns 405', async () => {
     axios.head.mockResolvedValueOnce({ status: 405, headers: {} });
 
-    // GET succeeds with one header
+    // A full page can exceed the buffered response limit. Read headers and close its stream.
+    const bodyStream = require('stream').Readable.from(Buffer.alloc(8192));
     axios.get.mockResolvedValueOnce({
       status: 200,
+      data: bodyStream,
       headers: { 'referrer-policy': 'no-referrer' }
     });
 
@@ -317,6 +319,17 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
 
     expect(response.statusCode).toBe(200);
     expect(axios.get).toHaveBeenCalledTimes(1);
+    expect(axios.get).toHaveBeenCalledWith('https://example.com/', expect.objectContaining({
+      responseType: 'stream', maxRedirects: 0
+    }));
+    expect(bodyStream.destroyed).toBe(true);
+  });
+
+  test('lists the approved hostnames for the signed-in scanner', async () => {
+    const response = await sharedAgent.get('/api/headershield/hosts');
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data).toContain('example.com');
+    await request(app).get('/api/headershield/hosts').expect(401);
   });
 
 });

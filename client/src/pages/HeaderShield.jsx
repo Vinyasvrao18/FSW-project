@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { securityApi } from '../api';
 import { ResultTable } from '../components/ResultTable';
 import { Alert } from '../components/Alert';
@@ -8,6 +8,15 @@ export default function HeaderShield() {
   const [result, setResult] = useState(null);   // null = not scanned yet
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [approvedHosts, setApprovedHosts] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    securityApi.getApprovedHeaderHosts()
+      .then(response => { if (active) setApprovedHosts(response.data); })
+      .catch(error => { if (active) setError(error.message); });
+    return () => { active = false; };
+  }, []);
 
   async function handleScan(event) {
     event.preventDefault();
@@ -116,8 +125,17 @@ export default function HeaderShield() {
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
             />
             <p className="mt-1.5 text-xs text-slate-500">
-              Only approved demo sites can be scanned.
+              Choose an approved hostname or enter a full URL on that host.
             </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {approvedHosts.map(hostname => (
+                <button type="button" key={hostname} disabled={loading}
+                  className="rounded border px-2 py-1 text-sm text-indigo-700"
+                  onClick={() => { setUrl('https://' + hostname); setError(''); }}>
+                  {hostname}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button
