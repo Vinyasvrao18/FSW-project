@@ -29,6 +29,7 @@ authguard-x/
 ```bash
 cd server
 npm ci
+npm run db:init
 npm run dev
 ```
 
@@ -40,7 +41,7 @@ npm run dev
 ```
 
 
-Use Node.js 22. Run the server and client in separate terminals, then open http://localhost:5173 and register an account. SQLite creates the database at first start.
+Use Node.js 22. Run the server and client in separate terminals, then open http://localhost:5173 and register an account. The database setup command creates server/authguard.db from server/schema.sql. Startup also runs this setup automatically. Running it again preserves existing accounts, scans and file fingerprints. The server prints the active database path.
 
 ## Source versions
 
