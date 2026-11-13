@@ -1,28 +1,48 @@
 const sqlite3 = require('sqlite3').verbose();
-const fs = require('node:fs');
-const path = require('node:path');
+const path = require('path');
 
-const databasePath = process.env.DB_PATH || path.join(__dirname, 'authguard.db');
-if (databasePath !== ':memory:') {
-  fs.mkdirSync(path.dirname(path.resolve(databasePath)), { recursive: true });
-}
-
-const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-const database = new sqlite3.Database(databasePath, error => {
-  if (error) reportDatabaseError(error);
-});
+const databasePath = process.env.DB_PATH || path.resolve(__dirname, 'authguard.db');
+const database = new sqlite3.Database(databasePath);
 
 database.serialize(() => {
-  database.exec(schema, error => {
-    if (error) return reportDatabaseError(error);
-    console.log('SQLite database ready:', databasePath);
-    if (require.main === module) database.close();
-  });
-});
+  // Users table
+  database.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-function reportDatabaseError(error) {
-  console.error('Unable to initialize SQLite database at', databasePath, error.message);
-  process.exit(1);
-}
+  // History / Audit Logs table
+  database.run(`
+    CREATE TABLE IF NOT EXISTS scan_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      module TEXT NOT NULL,
+      target TEXT NOT NULL,
+      status TEXT NOT NULL,
+      score INTEGER,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+  `);
+
+  // File integrity baseline hashes
+  database.run(`
+    CREATE TABLE IF NOT EXISTS file_hashes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      filename TEXT NOT NULL,
+      sha256 TEXT NOT NULL,
+      file_size INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+  `);
+});
 
 module.exports = database;

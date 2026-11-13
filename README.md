@@ -25,15 +25,10 @@ authguard-x/
 
 ## 🚀 Quick Start
 
-With both sets of dependencies installed, run `node start.js` from the project folder to start the API and interface together. Keep that terminal open. Stop any other development servers on ports 5000 and 5173 first. On a new database, select Register to create your account, then use that same email and password for later logins.
-
-For first-time installation or starting the services separately:
-
 ### 1. Server Setup
 ```bash
 cd server
 npm ci
-npm run db:init
 npm run dev
 ```
 
@@ -45,7 +40,7 @@ npm run dev
 ```
 
 
-Use Node.js 22. Run the server and client in separate terminals, then open http://localhost:5173 and register an account. The database setup command creates server/authguard.db from server/schema.sql. Startup also runs this setup automatically. Running it again preserves existing accounts, scans and file fingerprints. The server prints the active database path.
+Use Node.js 22. Run the server and client in separate terminals, then open http://localhost:5173 and register an account. SQLite creates the database at first start.
 
 ## Source versions
 

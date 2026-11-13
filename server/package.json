@@ -4,7 +4,6 @@
   "description": "AuthGuard-X Security Engine Backend",
   "main": "app.js",
   "scripts": {
-    "db:init": "node db.js",
     "start": "node app.js",
     "dev": "nodemon app.js"
   },

@@ -40,14 +40,9 @@ async function apiRequest(endpoint, options = {}) {
       headers['CSRF-Token'] = cachedCsrfToken;
       headers['X-CSRF-Token'] = cachedCsrfToken;
     }
-    try {
-      return await fetch(`${API_BASE}${endpoint}`, {
-        ...options, method, headers, body, credentials: 'include'
-      });
-    } catch (error) {
-      if (!(error instanceof TypeError)) throw error;
-      throw new Error('Cannot reach the AuthGuard-X server. Start the app with node start.js from the project folder.');
-    }
+    return fetch(`${API_BASE}${endpoint}`, {
+      ...options, method, headers, body, credentials: 'include'
+    });
   }
 
   if (needsCsrfToken && !cachedCsrfToken) await fetchCsrfToken();
