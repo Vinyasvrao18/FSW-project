@@ -4,7 +4,7 @@
  *
  * Security controls used:
  *  - isAuthenticated: only logged-in users can scan
- *  - SSRF host allowlist: only pre-approved hostnames can be scanned
+ *  - Resolve public destinations once and reuse the checked IP addresses
  *  - No redirect following: maxRedirects: 0 stops server-side redirect chains
  *  - HEAD-first: avoids downloading page bodies
  *  - Parameterised SQL: prevents SQL injection when saving history
@@ -13,6 +13,9 @@
 
 const express = require('express');
 const axios = require('axios');
+const dns = require('node:dns').promises;
+const net = require('node:net');
+const ipaddr = require('ipaddr.js');
 const database = require('./db');
 const { ok, fail, isAuthenticated } = require('./helpers');
 
@@ -26,12 +29,6 @@ const RECOMMENDED_HEADERS = [
   { name: 'referrer-policy', weight: 15, description: 'Controls referrer data sent in requests' },
   { name: 'permissions-policy', weight: 10, description: 'Restricts browser features and APIs' }
 ];
-
-const RAW_ALLOWED = process.env.ALLOWED_SCAN_HOSTS || 'example.com';
-const ALLOWED_HOSTS = RAW_ALLOWED
-  .split(',')
-  .map(hostname => hostname.trim().toLowerCase())
-  .filter(Boolean);
 
 // Five policies have detailed findings in addition to the six-header presence score.
 const HEADERS_TO_CHECK = [
@@ -92,10 +89,10 @@ function validateUrl(raw) {
   return { parsed };
 }
 
-function isHostAllowed(hostname) {
-  // Compare in lowercase so casing tricks cannot bypass the check
-  const lower = hostname.toLowerCase();
-  return ALLOWED_HOSTS.includes(lower);
+function isPublicAddress({ address }) {
+  const parsed = ipaddr.process(address);
+  if (parsed.range() !== 'unicast') return false;
+  return parsed.kind() === 'ipv4' || parsed.match(ipaddr.parse('2000::'), 3);
 }
 
 function safeAxiosError(error) {
@@ -138,7 +135,8 @@ function checkOneHeader(headerDefinition, receivedHeaders, isHttps) {
 }
 
 router.get('/hosts', isAuthenticated, (request, response) => {
-  return ok(response, ALLOWED_HOSTS);
+  // Compatibility with older clients that displayed example hosts.
+  return ok(response, []);
 });
 
 router.post('/scan', isAuthenticated, async (request, response) => {
@@ -151,11 +149,6 @@ router.post('/scan', isAuthenticated, async (request, response) => {
   }
   const parsed = validation.parsed;
 
-  // 2. SSRF defence: reject any host not on the allowlist
-  if (!isHostAllowed(parsed.hostname)) {
-    return fail(response, 'This hostname is not allowed. Choose an approved hostname listed in HeaderShield.', 403);
-  }
-
   // Normalised URL = href produced by the URL parser (strips extra whitespace etc.)
   const normalisedUrl = parsed.href;
   const isHttps = parsed.protocol === 'https:';
@@ -164,8 +157,21 @@ router.post('/scan', isAuthenticated, async (request, response) => {
   let receivedHeaders;
 
   try {
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+    const family = net.isIP(hostname);
+    const addresses = family ? [{ address: hostname, family }] : await dns.lookup(hostname, { all: true });
+    if (!addresses.length || !addresses.every(isPublicAddress)) {
+      return fail(response, 'Private and reserved network addresses are not allowed.', 403);
+    }
+
     // 3. Try HEAD first (avoids downloading the page body)
     const requestOptions = {
+      // Connect only to the addresses we checked, including on the GET fallback.
+      proxy: false,
+      lookup: (_hostname, options, callback) => {
+        if (options.all) return callback(null, addresses);
+        callback(null, addresses[0].address, addresses[0].family);
+      },
       maxRedirects: 0,
       timeout: 6000,
       maxContentLength: 1024,

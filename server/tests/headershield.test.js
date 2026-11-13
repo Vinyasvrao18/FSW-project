@@ -9,6 +9,7 @@
  *  - We check that security controls (allowlist, CSRF, auth) work.
  */
 
+const dns = require('node:dns').promises;
 const request = require('supertest');
 const app = require('../app');
 
@@ -49,8 +50,9 @@ beforeEach(() => {
   // Reset mock state between tests (call counts and queued return values)
   // but we do NOT recreate the agent — the session stays alive.
   jest.resetAllMocks();
-  // Make sure the allowed host env var is set for every test
-  process.env.ALLOWED_SCAN_HOSTS = 'example.com';
+  jest.spyOn(dns, 'lookup').mockImplementation(async hostname => [
+    { address: hostname === 'localhost' ? '127.0.0.1' : '8.8.8.8', family: 4 }
+  ]);
 });
 
 // ── TESTS ─────────────────────────────────────────────────────────────────────
@@ -157,14 +159,19 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
     expect(response.body.message).toMatch(/not allowed/i);
   });
 
-  test('rejects a host not on the allowlist', async () => {
+  test('scans an arbitrary public host using the validated DNS records', async () => {
+    axios.head.mockResolvedValueOnce({ status: 200, headers: {} });
     const response = await sharedAgent
       .post('/api/headershield/scan')
       .set('CSRF-Token', sharedCsrfToken)
       .send({ url: 'https://google.com' });
 
-    expect(response.statusCode).toBe(403);
-    expect(response.body.message).toMatch(/not allowed/i);
+    expect(response.statusCode).toBe(200);
+    const options = axios.head.mock.calls[0][1];
+    expect(options.proxy).toBe(false);
+    const callback = jest.fn();
+    options.lookup('google.com', { all: true }, callback);
+    expect(callback).toHaveBeenCalledWith(null, [{ address: '8.8.8.8', family: 4 }]);
   });
 
   // ── Happy path: allowed host, all headers present ─────────────────────────
@@ -325,11 +332,19 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
     expect(bodyStream.destroyed).toBe(true);
   });
 
-  test('lists the approved hostnames for the signed-in scanner', async () => {
-    const response = await sharedAgent.get('/api/headershield/hosts');
-    expect(response.statusCode).toBe(200);
-    expect(response.body.data).toContain('example.com');
-    await request(app).get('/api/headershield/hosts').expect(401);
+  test('blocks mixed public and private DNS answers before making a request', async () => {
+    dns.lookup.mockResolvedValueOnce([{ address: '8.8.8.8', family: 4 }, { address: '::1', family: 6 }]);
+    await sharedAgent.post('/api/headershield/scan').set('CSRF-Token', sharedCsrfToken)
+      .send({ url: 'https://mixed.example' }).expect(403);
+    expect(axios.head).not.toHaveBeenCalled();
   });
+
+  test.each(['[::1]', '[::ffff:127.0.0.1]', '[fd00::1]', '[::127.0.0.1]', '0x7f000001'])(
+    'blocks non-public IP literal %s', async host => {
+      await sharedAgent.post('/api/headershield/scan').set('CSRF-Token', sharedCsrfToken)
+        .send({ url: 'http://' + host }).expect(403);
+      expect(axios.head).not.toHaveBeenCalled();
+    }
+  );
 
 });
