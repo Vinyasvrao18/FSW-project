@@ -59,7 +59,7 @@ export default function FileIntegrity() {
         <p className="text-sm text-slate-500">Calculate cryptographic SHA-256 hashes, compare baselines and detect tampering.</p>
       </div>
 
-      <Alert type="error" message={error} onClose={() => setError('')} />
+      <Alert message={error} onClose={() => setError('')} />
 
       <form onSubmit={handleUpload} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

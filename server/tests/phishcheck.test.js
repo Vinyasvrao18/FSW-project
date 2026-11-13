@@ -342,13 +342,20 @@ describe('POST /api/phishcheck/analyze – HTTP route', () => {
 
   // ── /check alias also works ────────────────────────────────────────────────
 
-  test('/check route (alias) also returns 200 for a valid URL', async () => {
+  test('/check preserves the original report and records its score in history', async () => {
     const response = await sharedAgent
       .post('/api/phishcheck/check')
       .set('CSRF-Token', sharedCsrfToken)
-      .send({ url: 'https://example.com' });
+      .send({ url: 'https://example.com/original-test' });
 
     expect(response.statusCode).toBe(200);
+    expect(response.body.data).toEqual({
+      url: 'https://example.com/original-test', riskScore: 0, classification: 'SAFE', findings: []
+    });
+    const history = await sharedAgent.get('/api/history?module=PhishCheck');
+    expect(history.body.data).toContainEqual(expect.objectContaining({
+      target: response.body.data.url, status: 'SAFE', score: 0
+    }));
   });
 
   // ── Deterministic via HTTP ─────────────────────────────────────────────────

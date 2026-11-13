@@ -29,7 +29,7 @@ export default function Register({ setUser }) {
   return (
     <div className="account-panel">
       <h1 className="account-title">Create an Account</h1>
-      <Alert type="error" message={error} onClose={() => setError('')} />
+      <Alert message={error} onClose={() => setError('')} />
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="text" className="block text-sm font-medium text-slate-700">Username</label>

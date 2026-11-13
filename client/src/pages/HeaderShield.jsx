@@ -103,7 +103,7 @@ export default function HeaderShield() {
         This reviews response headers only. It is not a full security audit.
       </div>
 
-      <Alert type="error" message={error} onClose={() => setError('')} />
+      <Alert message={error} onClose={() => setError('')} />
 
       {!result && (
         <form onSubmit={handleScan} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">

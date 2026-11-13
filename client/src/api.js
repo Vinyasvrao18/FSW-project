@@ -7,7 +7,7 @@ const API_BASE = import.meta.env?.VITE_API_BASE || 'http://localhost:5000/api';
 
 let cachedCsrfToken = null;
 
-export async function fetchCsrfToken() {
+async function fetchCsrfToken() {
   try {
     const response = await fetch(`${API_BASE}/csrf-token`, {
       method: 'GET',
@@ -24,7 +24,7 @@ export async function fetchCsrfToken() {
   return null;
 }
 
-export async function apiRequest(endpoint, options = {}) {
+async function apiRequest(endpoint, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const headers = { ...(options.headers || {}) };
 

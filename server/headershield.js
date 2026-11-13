@@ -18,8 +18,6 @@ const { ok, fail, isAuthenticated } = require('./helpers');
 
 const router = express.Router();
 
-// Only hostnames listed here may be scanned. Everything else is blocked.
-// Add "example.com" (or more) to the ALLOWED_SCAN_HOSTS env var.
 const RECOMMENDED_HEADERS = [
   { name: 'content-security-policy', weight: 25, description: 'Mitigates XSS and data injection attacks' },
   { name: 'strict-transport-security', weight: 20, description: 'Forces secure HTTPS connections' },
@@ -35,7 +33,7 @@ const ALLOWED_HOSTS = RAW_ALLOWED
   .map(hostname => hostname.trim().toLowerCase())
   .filter(Boolean);
 
-// Exactly the five headers the spec requires. No weights, no x-frame-options.
+// Five policies have detailed findings in addition to the six-header presence score.
 const HEADERS_TO_CHECK = [
   {
     header: 'content-security-policy',
@@ -182,16 +180,6 @@ router.post('/scan', isAuthenticated, async (request, response) => {
 
     httpStatus = upstreamResponse.status;
     receivedHeaders = upstreamResponse.headers || {};
-
-    // If the server redirected (3xx), tell the client where it wanted to go (hostname only)
-    if (httpStatus >= 300 && httpStatus < 400) {
-      const locationHeader = receivedHeaders['location'] || '';
-      let redirectHost = '';
-      try {
-        redirectHost = new URL(locationHeader).hostname;
-      } catch { /* location header is not a full URL */ }
-      console.log('[HeaderShield] Redirect detected → Location host:', redirectHost);
-    }
 
   } catch (error) {
     // Catch-all for unexpected errors

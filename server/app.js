@@ -2,7 +2,6 @@ const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
-const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
 const cors = require('cors');
 
@@ -27,10 +26,9 @@ app.use(cors({
   credentials: true
 }));
 
-// 3. Body & Cookie Parsing
+// 3. Request body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser(SESSION_SECRET));
 
 // 4. Rate Limiting
 const generalLimiter = rateLimit({

@@ -28,7 +28,7 @@ export default function Login({ setUser }) {
   return (
     <div className="account-panel">
       <h1 className="account-title">Sign In to AuthGuard-X</h1>
-      <Alert type="error" message={error} onClose={() => setError('')} />
+      <Alert message={error} onClose={() => setError('')} />
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email Address</label>

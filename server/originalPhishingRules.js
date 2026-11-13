@@ -5,8 +5,7 @@ const SUSPICIOUS_KEYWORDS = [
 
 const SUSPICIOUS_TOP_LEVEL_DOMAINS = ['.xyz', '.top', '.zip', '.click', '.country', '.work', '.kim'];
 
-function analyzeOriginalPhishingRules(url) {
-  const parsed = new URL(url);
+function analyzeOriginalPhishingRules(url, parsed) {
   const hostname = parsed.hostname.toLowerCase();
   const pathname = parsed.pathname.toLowerCase();
 

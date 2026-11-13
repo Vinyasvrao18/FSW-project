@@ -22,15 +22,6 @@ function isValidEmail(email) {
   return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function isValidUrl(urlString) {
-  try {
-    const parsed = new URL(urlString);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function isAuthenticated(request, response, next) {
   if (request.session && request.session.userId) {
     return next();
@@ -42,6 +33,5 @@ module.exports = {
   ok,
   fail,
   isValidEmail,
-  isValidUrl,
   isAuthenticated
 };

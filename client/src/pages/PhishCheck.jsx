@@ -67,7 +67,7 @@ export default function PhishCheck() {
         The link is never opened.
       </div>
 
-      <Alert type="error" message={error} onClose={() => setError('')} />
+      <Alert message={error} onClose={() => setError('')} />
 
       {!result && (
         <form onSubmit={handleAnalyse} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">

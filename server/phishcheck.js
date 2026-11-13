@@ -113,9 +113,7 @@ function scoreToBand(score) {
 }
 
 // Exported so unit tests can call it directly without HTTP.
-function analyzeUrl(urlString) {
-  // Parse the URL — throws if it is invalid
-  const parsed = new URL(urlString);
+function analyzeUrl(urlString, parsed = new URL(urlString)) {
 
   const hostname = parsed.hostname.toLowerCase();
   const fullUrl  = parsed.href; // the normalised URL from the parser
@@ -209,16 +207,6 @@ function analyzeUrl(urlString) {
   };
 }
 
-function safeParseError(urlString) {
-  if (typeof urlString !== 'string' || urlString.length === 0) {
-    return 'Please enter a URL.';
-  }
-  if (urlString.length > 2048) {
-    return 'URL is too long (max 2048 characters).';
-  }
-  return 'Invalid URL. Please include http:// or https://.';
-}
-
 // Used by both /analyze and /check routes so there is no duplicated code.
 function handleAnalyze(request, response) {
   const rawUrl = request.body.url;
@@ -236,7 +224,7 @@ function handleAnalyze(request, response) {
   try {
     parsed = new URL(rawUrl);
   } catch {
-    return fail(response, safeParseError(rawUrl), 422);
+    return fail(response, 'Invalid URL. Please include http:// or https://.', 422);
   }
 
   // 3. Only http and https are accepted
@@ -245,20 +233,18 @@ function handleAnalyze(request, response) {
   }
 
   // 4. Run the heuristic analysis (pure function, no network)
-  let result;
+  const usesOriginalRules = request.path === '/check';
+  let report;
   try {
-    result = analyzeUrl(rawUrl);
+    report = usesOriginalRules ? analyzeOriginalPhishingRules(rawUrl, parsed) : analyzeUrl(rawUrl, parsed);
   } catch (error) {
     // Should not happen after the checks above, but be safe
     console.error('[PhishCheck] analyzeUrl error:', error.message);
     return fail(response, 'Could not analyse this URL.', 422);
   }
 
-  // Older clients use /check and expect the original rule names and weights.
-  const usesOriginalRules = request.path === '/check';
-  const report = usesOriginalRules ? analyzeOriginalPhishingRules(rawUrl) : result;
-  const status = usesOriginalRules ? report.classification : result.riskLevel;
-  const score = usesOriginalRules ? report.riskScore : result.score;
+  const status = usesOriginalRules ? report.classification : report.riskLevel;
+  const score = usesOriginalRules ? report.riskScore : report.score;
 
   // 5. Save to scan_history with parameterised SQL
   //    user_id from session only — never from the request body
@@ -268,7 +254,7 @@ function handleAnalyze(request, response) {
     [
       request.session.userId,          // from server session
       'PhishCheck',                // exact module name the dashboard counts on
-      result.normalisedUrl,        // normalised URL from the parser
+      parsed.href,        // normalised URL from the parser
       status,
       score,
       JSON.stringify({ riskLevel: status, findings: report.findings })
@@ -285,9 +271,9 @@ function handleAnalyze(request, response) {
   return ok(response, report, 'URL analysed');
 }
 
-// Register at both /analyze (project document spec) and /check (api.js compat)
+// The original /check endpoint retains its own scoring rules and response format.
 router.post('/analyze', isAuthenticated, handleAnalyze);
-router.post('/check',   isAuthenticated, handleAnalyze); // keeps existing api.js working
+router.post('/check', isAuthenticated, handleAnalyze);
 
 module.exports = router;
 module.exports.analyzeUrl = analyzeUrl; // exported for unit tests
