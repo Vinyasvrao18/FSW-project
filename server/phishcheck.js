@@ -112,7 +112,8 @@ function scoreToBand(score) {
   return 'very high'; // fallback (score already capped at 100)
 }
 
-function analyzeUrl(urlString, parsed) {
+// Exported so unit tests can call it directly without HTTP.
+function analyzeUrl(urlString, parsed = new URL(urlString)) {
 
   const hostname = parsed.hostname.toLowerCase();
   const fullUrl  = parsed.href; // the normalised URL from the parser
@@ -275,3 +276,4 @@ router.post('/analyze', isAuthenticated, handleAnalyze);
 router.post('/check', isAuthenticated, handleAnalyze);
 
 module.exports = router;
+module.exports.analyzeUrl = analyzeUrl; // exported for unit tests

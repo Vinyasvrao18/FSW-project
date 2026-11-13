@@ -15,6 +15,7 @@ authguard-x/
     fileintegrity.js  # File upload, SHA-256 hash calculation, comparison & logging
     history.js        # Audit trail logs & dashboard summary metrics
     helpers.js        # Standardized ok()/fail() responses & validation helpers
+    tests/            # Jest + Supertest test suites
   client/src/
     api.js            # Unified fetch wrapper with auto-CSRF header injection
     pages/            # Login, Register, Dashboard, HeaderShield, PhishCheck, FileIntegrity, History
@@ -48,4 +49,4 @@ The account system, dashboard and weighted header checks come from FSW project.z
 
 The interface uses POST /api/phishcheck/analyze for extended analysis. Existing clients can use POST /api/phishcheck/check for the original scoring rules. HeaderShield accepts both targetUrl and url. Its allowlist defaults to example.com. Set ALLOWED_SCAN_HOSTS in the server environment for additional approved hostnames.
 
-Run npm run build in the client directory to create the production frontend. To reuse a compatible database, set DB_PATH before starting the server.
+Run npm test in the server directory and npm run build in the client directory. The HeaderShield tests mock outbound requests. To reuse a compatible database, set DB_PATH before starting the server.
