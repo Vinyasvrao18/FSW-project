@@ -342,20 +342,33 @@ describe('POST /api/phishcheck/analyze – HTTP route', () => {
 
   // ── /check alias also works ────────────────────────────────────────────────
 
-  test('/check preserves the original report and records its score in history', async () => {
-    const response = await sharedAgent
-      .post('/api/phishcheck/check')
-      .set('CSRF-Token', sharedCsrfToken)
-      .send({ url: 'https://example.com/original-test' });
+  test.each([
+    ['https://example.com/parity', 0, 'low', 'SAFE'],
+    ['http://bit.ly/login-verify', 35, 'medium', 'SUSPICIOUS'],
+    ['http://user@[2001:db8::1]/verify', 65, 'high', 'HIGH_RISK'],
+    ['http://user@[2001:db8::1]:8888/verify', 75, 'very high', 'HIGH_RISK']
+  ])('both routes score %s identically and save the same findings', async (url, score, riskLevel, classification) => {
+    const reports = [];
+    for (const route of ['analyze', 'check']) {
+      const response = await sharedAgent.post('/api/phishcheck/' + route)
+        .set('CSRF-Token', sharedCsrfToken).send({ url }).expect(200);
+      reports.push(response.body.data);
+    }
 
-    expect(response.statusCode).toBe(200);
-    expect(response.body.data).toEqual({
-      url: 'https://example.com/original-test', riskScore: 0, classification: 'SAFE', findings: []
+    const [current, legacy] = reports;
+    expect(current).toMatchObject({ score, riskLevel });
+    expect(legacy).toEqual({
+      url, riskScore: score, classification,
+      findings: current.findings.map(finding => ({
+        rule: finding.ruleId, severity: finding.severity, message: finding.explanation
+      }))
     });
-    const history = await sharedAgent.get('/api/history?module=PhishCheck');
-    expect(history.body.data).toContainEqual(expect.objectContaining({
-      target: response.body.data.url, status: 'SAFE', score: 0
-    }));
+    const history = await sharedAgent.get('/api/history?module=PhishCheck').expect(200);
+    expect(history.body.data.length).toBeGreaterThanOrEqual(2);
+    for (const record of history.body.data.slice(0, 2)) {
+      expect(record).toMatchObject({ target: current.normalisedUrl, score, status: riskLevel,
+        details: { riskLevel, findings: current.findings } });
+    }
   });
 
   // ── Deterministic via HTTP ─────────────────────────────────────────────────

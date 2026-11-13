@@ -9,7 +9,6 @@
  * Same input → same output every time (deterministic).
  */
 
-const analyzeOriginalPhishingRules = require('./originalPhishingRules');
 const express = require('express');
 const database = require('./db');
 const { ok, fail, isAuthenticated } = require('./helpers');
@@ -24,54 +23,63 @@ const CONFIG = {
   rules: [
     {
       id: 'URL_SCHEME',
+      severity: 'MEDIUM',
       label: 'Plain HTTP (not HTTPS)',
       weight: 10,
       explanation: 'The URL uses plain HTTP, which does not encrypt traffic between your browser and the server.'
     },
     {
       id: 'IP_HOST',
+      severity: 'HIGH',
       label: 'IP address used as host',
       weight: 25,
       explanation: 'The host is a raw IP address. Legitimate sites almost always use a domain name, not an IP.'
     },
     {
       id: 'AT_SYMBOL',
+      severity: 'HIGH',
       label: 'Credentials before the @ symbol',
       weight: 20,
       explanation: 'The URL contains user information before an @ sign, which is a classic trick to hide the real host.'
     },
     {
       id: 'EXCESSIVE_SUBDOMAINS',
+      severity: 'HIGH',
       label: 'Too many subdomains',
       weight: 10,
       explanation: 'The host has more than 3 labels (e.g. a.b.c.d.example.com). Phishing sites often pad subdomains.'
     },
     {
       id: 'PUNYCODE',
+      severity: 'MEDIUM',
       label: 'Punycode label (possible lookalike domain)',
       weight: 15,
       explanation: 'A label in the host starts with xn--, which is used to encode non-ASCII letters that can look like common letters.'
     },
     {
       id: 'SUSPICIOUS_KEYWORDS',
+      severity: 'MEDIUM',
       label: 'Suspicious keywords in URL',
       weight: 10,
       explanation: 'The URL contains words like "login" or "verify" that are common in phishing pages designed to steal credentials.'
     },
     {
       id: 'LONG_URL',
+      severity: 'LOW',
       label: 'Unusually long URL',
       weight: 5,
       explanation: 'The URL is longer than 75 characters. Phishing URLs are often padded to hide the real destination.'
     },
     {
       id: 'UNUSUAL_PORT',
+      severity: 'MEDIUM',
       label: 'Unusual port number',
       weight: 10,
       explanation: 'The URL uses a port other than 80 (HTTP) or 443 (HTTPS), which is uncommon for legitimate public sites.'
     },
     {
       id: 'SHORTENER',
+      severity: 'MEDIUM',
       label: 'URL shortener service',
       weight: 15,
       explanation: 'The host is a known URL-shortening service. These hide the final destination until you click.'
@@ -131,6 +139,7 @@ function analyzeUrl(urlString, parsed = new URL(urlString)) {
     totalScore += rule.weight;
     triggeredFindings.push({
       ruleId:      rule.id,
+      severity:    rule.severity,
       label:       rule.label,
       weight:      rule.weight,
       explanation: rule.explanation
@@ -233,18 +242,14 @@ function handleAnalyze(request, response) {
   }
 
   // 4. Run the heuristic analysis (pure function, no network)
-  const usesOriginalRules = request.path === '/check';
   let report;
   try {
-    report = usesOriginalRules ? analyzeOriginalPhishingRules(rawUrl, parsed) : analyzeUrl(rawUrl, parsed);
+    report = analyzeUrl(rawUrl, parsed);
   } catch (error) {
     // Should not happen after the checks above, but be safe
     console.error('[PhishCheck] analyzeUrl error:', error.message);
     return fail(response, 'Could not analyse this URL.', 422);
   }
-
-  const status = usesOriginalRules ? report.classification : report.riskLevel;
-  const score = usesOriginalRules ? report.riskScore : report.score;
 
   // 5. Save to scan_history with parameterised SQL
   //    user_id from session only — never from the request body
@@ -255,9 +260,9 @@ function handleAnalyze(request, response) {
       request.session.userId,          // from server session
       'PhishCheck',                // exact module name the dashboard counts on
       parsed.href,        // normalised URL from the parser
-      status,
-      score,
-      JSON.stringify({ riskLevel: status, findings: report.findings })
+      report.riskLevel,
+      report.score,
+      JSON.stringify({ riskLevel: report.riskLevel, findings: report.findings })
     ],
     (databaseError) => {
       if (databaseError) {
@@ -268,10 +273,21 @@ function handleAnalyze(request, response) {
   );
 
   // 6. Return the result — no internal error details exposed
+  if (request.path === '/check') {
+    const classificationLabels = { low: 'SAFE', medium: 'SUSPICIOUS', high: 'HIGH_RISK', 'very high': 'HIGH_RISK' };
+    return ok(response, {
+      url: rawUrl,
+      riskScore: report.score,
+      classification: classificationLabels[report.riskLevel],
+      findings: report.findings.map(finding => ({
+        rule: finding.ruleId, severity: finding.severity, message: finding.explanation
+      }))
+    }, 'URL analysed');
+  }
   return ok(response, report, 'URL analysed');
 }
 
-// The original /check endpoint retains its own scoring rules and response format.
+// The original /check endpoint retains its response format.
 router.post('/analyze', isAuthenticated, handleAnalyze);
 router.post('/check', isAuthenticated, handleAnalyze);
 

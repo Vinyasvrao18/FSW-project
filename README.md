@@ -47,6 +47,6 @@ Use Node.js 22. Run the server and client in separate terminals, then open http:
 
 The account system, dashboard and weighted header checks come from FSW project.zip. The detailed header findings and extended phishing analysis come from FSW.zip. The selected-file preview and ten-record history pages are adapted from fsw1.zip.
 
-The interface uses POST /api/phishcheck/analyze for extended analysis. Existing clients can use POST /api/phishcheck/check for the original scoring rules. HeaderShield accepts both targetUrl and url. Enter any public HTTP or HTTPS URL directly. HeaderShield checks the submitted URL’s own response, including redirect responses. Private and reserved network destinations are blocked.
+Both PhishCheck endpoints use the same nine rules and save the same score and findings. The interface uses POST /api/phishcheck/analyze. POST /api/phishcheck/check preserves the older response fields and maps the shared risk bands to SAFE, SUSPICIOUS or HIGH_RISK. Earlier history entries retain their original scores. HeaderShield accepts both targetUrl and url. Enter any public HTTP or HTTPS URL directly. HeaderShield checks the submitted URL’s own response, including redirect responses. Private and reserved network destinations are blocked.
 
 Run npm test in the server directory and npm run build in the client directory. The HeaderShield tests mock outbound requests. To reuse a compatible database, set DB_PATH before starting the server.
