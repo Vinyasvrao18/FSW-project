@@ -177,12 +177,13 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
   // ── Happy path: allowed host, all headers present ─────────────────────────
 
   test('scans allowed host and returns findings + saves history row', async () => {
-    // Set up axios to return a response with all five security headers
+    // Set up axios to return a response with all six security headers
     axios.head.mockResolvedValueOnce({
       status: 200,
       headers: {
         'content-security-policy': "default-src 'self'",
         'strict-transport-security': 'max-age=31536000',
+        'x-frame-options': 'DENY',
         'x-content-type-options': 'nosniff',
         'referrer-policy': 'no-referrer',
         'permissions-policy': 'geolocation=()'
@@ -198,16 +199,19 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
     expect(response.body.success).toBe(true);
 
     const data = response.body.data;
-    // All five headers should be present
-    expect(data.summary.present).toBe(5);
+    // All six headers should be present
+    expect(data.summary.present).toBe(6);
     expect(data.summary.missing).toBe(0);
-    expect(data.summary.checked).toBe(5);
+    expect(data.summary.checked).toBe(6);
+    expect(data.score).toBe(100);
+    expect(data.findings.reduce((total, finding) => total + finding.points, 0)).toBe(data.score);
+    expect(data.checks.map(check => check.header)).toEqual(data.findings.map(finding => finding.header));
 
     // Response must include the limitation note
     expect(data.limitations).toMatch(/does not prove/i);
 
-    // Findings array must have exactly five entries
-    expect(data.findings).toHaveLength(5);
+    // Findings array must have exactly six entries
+    expect(data.findings).toHaveLength(6);
 
     // Every finding has the required fields
     data.findings.forEach(finding => {
@@ -238,7 +242,7 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
 
     expect(response.statusCode).toBe(200);
     const data = response.body.data;
-    expect(data.summary.missing).toBe(5);
+    expect(data.summary.missing).toBe(6);
 
     // Every missing header must have a non-empty recommendation
     data.findings
@@ -250,7 +254,7 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
 
   // ── x-content-type-options must be exactly "nosniff" ─────────────────────
 
-  test('x-content-type-options with wrong value is treated as missing', async () => {
+  test('x-content-type-options with wrong value earns zero points', async () => {
     // Value is present but wrong
     axios.head.mockResolvedValueOnce({
       status: 200,
@@ -264,7 +268,30 @@ describe('HeaderShield — POST /api/headershield/scan', () => {
 
     expect(response.statusCode).toBe(200);
     const contentTypeOptions = response.body.data.findings.find(finding => finding.header === 'x-content-type-options');
-    expect(contentTypeOptions.status).toBe('missing');
+    expect(contentTypeOptions).toMatchObject({ status: 'invalid', points: 0 });
+    expect(response.body.data.score).toBe(0);
+  });
+
+  test.each([
+    ['  SameOrigin  ', 'present', 15],
+    ['ALLOW-FROM https://example.com', 'invalid', 0],
+    ['   ', 'missing', 0]
+  ])('X-Frame-Options value %j agrees with the total score', async (value, status, points) => {
+    axios.head.mockResolvedValueOnce({ status: 200, headers: { 'x-frame-options': value } });
+    const response = await sharedAgent.post('/api/headershield/scan').set('CSRF-Token', sharedCsrfToken)
+      .send({ url: 'https://example.com' }).expect(200);
+    const report = response.body.data;
+    expect(report.score).toBe(points);
+    expect(report.findings).toContainEqual(expect.objectContaining({ header: 'x-frame-options', status, points }));
+    expect(report.summary.present + report.summary.invalid + report.summary.missing).toBe(report.summary.checked);
+  });
+
+  test('HSTS received over HTTP receives no points', async () => {
+    axios.head.mockResolvedValueOnce({ status: 200, headers: { 'strict-transport-security': 'max-age=31536000' } });
+    const response = await sharedAgent.post('/api/headershield/scan').set('CSRF-Token', sharedCsrfToken)
+      .send({ url: 'http://example.com' }).expect(200);
+    expect(response.body.data.score).toBe(0);
+    expect(response.body.data.summary.invalid).toBe(1);
   });
 
   // ── Redirect is NOT followed ───────────────────────────────────────────────

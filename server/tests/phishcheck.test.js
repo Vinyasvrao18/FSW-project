@@ -144,6 +144,18 @@ describe('analyzeUrl() – pure function unit tests', () => {
     expect(rule).toBeDefined();
   });
 
+  test('IPv4 octets do not trigger the excessive subdomains rule', () => {
+    const report = analyzeUrl('https://192.0.2.1');
+    expect(report.findings.map(finding => finding.ruleId)).toEqual(['IP_HOST']);
+    expect(report.score).toBe(25);
+  });
+
+  test('multiple occurrences of login contribute the keyword weight once', () => {
+    const report = analyzeUrl('https://login.example.com/login?next=login');
+    expect(report.score).toBe(10);
+    expect(report.findings).toHaveLength(1);
+  });
+
   // ── Combined case ──────────────────────────────────────────────────────────
 
   test('combined case: http + IP + AT triggers multiple rules, score >= 55 and <= 100', () => {

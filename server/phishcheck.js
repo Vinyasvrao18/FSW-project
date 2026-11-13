@@ -129,13 +129,9 @@ function analyzeUrl(urlString, parsed = new URL(urlString)) {
   const triggeredFindings = []; // rules that matched
   let totalScore = 0;
 
-  // Build a lookup map from rule id to rule definition (for easy access below)
-  const ruleMap = {};
-  CONFIG.rules.forEach(rule => { ruleMap[rule.id] = rule; });
-
   // Helper to trigger a rule: add it to findings and add its weight to score
   function trigger(ruleId) {
-    const rule = ruleMap[ruleId];
+    const rule = CONFIG.rules.find(definition => definition.id === ruleId);
     totalScore += rule.weight;
     triggeredFindings.push({
       ruleId:      rule.id,
@@ -164,7 +160,7 @@ function analyzeUrl(urlString, parsed = new URL(urlString)) {
   // Rule 4: too many subdomain labels
   // e.g. "a.b.c.example.com" has 5 labels; > 3 triggers the rule
   const labels = hostname.split('.');
-  if (labels.length > CONFIG.excessiveSubdomainLabels) {
+  if (!isIpAddress(hostname) && labels.length > CONFIG.excessiveSubdomainLabels) {
     trigger('EXCESSIVE_SUBDOMAINS');
   }
 
@@ -212,7 +208,7 @@ function analyzeUrl(urlString, parsed = new URL(urlString)) {
     score,
     riskLevel,
     findings: triggeredFindings,
-    disclaimer: 'Heuristic result; not a reputation verdict.'
+    disclaimer: 'This heuristic scores URL patterns only. A legitimate login page can score high, and a phishing page with an ordinary-looking URL can score low. HTTPS encrypts the connection; it does not establish who you should trust.'
   };
 }
 

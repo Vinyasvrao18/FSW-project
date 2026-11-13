@@ -63,7 +63,7 @@ export default function PhishCheck() {
       </div>
 
       <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
-        This is a heuristic check, not a guarantee that a link is safe or malicious.
+        PhishCheck reads the URL without visiting it. A word like “login” contributes to the score even on a legitimate site.
         The link is never opened.
       </div>
 

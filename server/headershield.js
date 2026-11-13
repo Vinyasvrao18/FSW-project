@@ -21,39 +21,42 @@ const { ok, fail, isAuthenticated } = require('./helpers');
 
 const router = express.Router();
 
-const RECOMMENDED_HEADERS = [
-  { name: 'content-security-policy', weight: 25, description: 'Mitigates XSS and data injection attacks' },
-  { name: 'strict-transport-security', weight: 20, description: 'Forces secure HTTPS connections' },
-  { name: 'x-frame-options', weight: 15, description: 'Protects against clickjacking' },
-  { name: 'x-content-type-options', weight: 15, description: 'Prevents MIME-sniffing' },
-  { name: 'referrer-policy', weight: 15, description: 'Controls referrer data sent in requests' },
-  { name: 'permissions-policy', weight: 10, description: 'Restricts browser features and APIs' }
-];
-
-// Five policies have detailed findings in addition to the six-header presence score.
-const HEADERS_TO_CHECK = [
+const HEADER_POLICIES = [
   {
     header: 'content-security-policy',
+    weight: 25,
     purpose: 'Tells the browser which sources of scripts, styles and images are allowed. Reduces XSS risk.',
     recommendation: 'Add a Content-Security-Policy header with a strict policy, e.g. default-src \'self\'.'
   },
   {
     header: 'strict-transport-security',
+    weight: 20,
     purpose: 'Forces the browser to use HTTPS instead of HTTP for future visits. Prevents protocol downgrade attacks.',
     recommendation: 'Add Strict-Transport-Security: max-age=31536000; includeSubDomains (only meaningful over HTTPS).'
   },
   {
+    header: 'x-frame-options',
+    weight: 15,
+    purpose: 'Controls whether other pages can embed this page in a frame.',
+    recommendation: 'Set X-Frame-Options to DENY or SAMEORIGIN.',
+    acceptedValues: ['deny', 'sameorigin']
+  },
+  {
     header: 'x-content-type-options',
+    weight: 15,
+    acceptedValues: ['nosniff'],
     purpose: 'Stops the browser from guessing the file type (MIME sniffing), which can be exploited for XSS.',
     recommendation: 'Add X-Content-Type-Options: nosniff exactly.'
   },
   {
     header: 'referrer-policy',
+    weight: 15,
     purpose: 'Controls how much of the current URL is sent to other sites when a user clicks a link.',
     recommendation: 'Add Referrer-Policy: no-referrer or strict-origin-when-cross-origin.'
   },
   {
     header: 'permissions-policy',
+    weight: 10,
     purpose: 'Restricts which browser features (camera, microphone, geolocation) the page can use.',
     recommendation: 'Add Permissions-Policy listing only the features your site actually needs.'
   }
@@ -103,34 +106,25 @@ function safeAxiosError(error) {
 }
 
 function checkOneHeader(headerDefinition, receivedHeaders, isHttps) {
-  const rawValue = receivedHeaders[headerDefinition.header] || null;
-  let status = rawValue ? 'present' : 'missing';
-
-  // x-content-type-options is only "correct" when the value is exactly "nosniff"
-  if (headerDefinition.header === 'x-content-type-options' && rawValue) {
-    if (rawValue.trim().toLowerCase() !== 'nosniff') {
-      status = 'missing'; // present but wrong value → treat as missing
-    }
+  const value = String(receivedHeaders[headerDefinition.header] ?? '').trim();
+  let status = value ? 'present' : 'missing';
+  let recommendation = headerDefinition.recommendation;
+  if (value && headerDefinition.acceptedValues && !headerDefinition.acceptedValues.includes(value.toLowerCase())) {
+    status = 'invalid';
   }
-
-  // HSTS is only meaningful over HTTPS; note this in the recommendation
-  let recommendation = status === 'missing' ? headerDefinition.recommendation : '';
-  if (headerDefinition.header === 'strict-transport-security' && !isHttps && status === 'missing') {
-    recommendation = 'HSTS only works over HTTPS. Switch the site to HTTPS first, then add this header.';
-  }
-
-  // valueSummary: a short (≤120 char) display of the actual value
-  let valueSummary = '';
-  if (rawValue) {
-    valueSummary = rawValue.length > 120 ? rawValue.substring(0, 117) + '...' : rawValue;
+  if (headerDefinition.header === 'strict-transport-security' && !isHttps) {
+    if (value) status = 'invalid';
+    recommendation = 'Serve the site over HTTPS, then send Strict-Transport-Security.';
   }
 
   return {
     header: headerDefinition.header,
-    status,            // 'present' or 'missing'
-    valueSummary,      // what the site actually sent (blank when missing)
+    weight: headerDefinition.weight,
+    points: status === 'present' ? headerDefinition.weight : 0,
+    status,
+    valueSummary: value.length > 120 ? value.slice(0, 117) + '...' : value,
     purpose: headerDefinition.purpose,
-    recommendation     // plain-English advice (blank when present and correct)
+    recommendation: status === 'present' ? '' : recommendation
   };
 }
 
@@ -193,32 +187,23 @@ router.post('/scan', isAuthenticated, async (request, response) => {
     return fail(response, safeAxiosError(error), 502);
   }
 
-  // 4. Check each of the five required headers
-  const findings = HEADERS_TO_CHECK.map(definition =>
-    checkOneHeader(definition, receivedHeaders, isHttps)
-  );
-
-  // 5. Count the detailed policy findings
-  const present = findings.filter(finding => finding.status === 'present').length;
-  const missing = findings.filter(finding => finding.status === 'missing').length;
+  const findings = HEADER_POLICIES.map(policy => checkOneHeader(policy, receivedHeaders, isHttps));
+  const score = findings.reduce((total, finding) => total + finding.points, 0);
   const summary = {
     checked: findings.length,
-    present,
-    missing
+    present: findings.filter(finding => finding.status === 'present').length,
+    missing: findings.filter(finding => finding.status === 'missing').length,
+    invalid: findings.filter(finding => finding.status === 'invalid').length
   };
 
-  let score = 0;
-  const checks = RECOMMENDED_HEADERS.map(headerDefinition => {
-    const present = Boolean(receivedHeaders[headerDefinition.name.toLowerCase()]);
-    if (present) score += headerDefinition.weight;
-    return {
-      header: headerDefinition.name,
-      present,
-      value: receivedHeaders[headerDefinition.name.toLowerCase()] || null,
-      description: headerDefinition.description,
-      weight: headerDefinition.weight
-    };
-  });
+  // Keep the original API fields for clients that read the checks array.
+  const checks = findings.map(finding => ({
+    header: finding.header,
+    present: finding.status !== 'missing',
+    value: receivedHeaders[finding.header] || null,
+    description: finding.purpose,
+    weight: finding.weight
+  }));
 
   const status = score >= 80 ? 'STRONG' : score >= 50 ? 'MODERATE' : 'WEAK';
 

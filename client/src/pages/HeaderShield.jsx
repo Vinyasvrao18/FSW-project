@@ -55,10 +55,15 @@ export default function HeaderShield() {
                 : 'inline-block px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800'
             }
           >
-            {isPresent ? 'Present' : 'Missing'}
+            {{ present: 'Passed', invalid: 'Invalid', missing: 'Missing' }[row.status]}
           </span>
         );
       }
+    },
+    {
+      header: 'Points',
+      accessor: 'points',
+      render: row => <span>{row.points}/{row.weight}</span>
     },
     {
       header: 'Purpose',
@@ -147,7 +152,7 @@ export default function HeaderShield() {
           <div>
             <h2 className="font-semibold">Weighted header score</h2>
             <p>{result.score}/100 · {result.status}</p>
-            <p className="text-sm text-slate-500">Based on six headers, including X-Frame-Options.</p>
+            <p className="text-sm text-slate-500">Sum of the points earned by the {result.summary.checked} policies below.</p>
           </div>
 
           <div>
@@ -157,10 +162,13 @@ export default function HeaderShield() {
                 Checked: <strong>{result.summary.checked}</strong>
               </span>
               <span className="text-emerald-700">
-                Present: <strong>{result.summary.present}</strong>
+                Passed: <strong>{result.summary.present}</strong>
               </span>
               <span className="text-rose-700">
                 Missing: <strong>{result.summary.missing}</strong>
+              </span>
+              <span className="text-amber-700">
+                Invalid: <strong>{result.summary.invalid}</strong>
               </span>
             </div>
           </div>
